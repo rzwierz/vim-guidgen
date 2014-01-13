@@ -2,14 +2,16 @@ command! -range NullGuidGen call NullGuidGen(<line1>, <line2>)
 command! -range CommonGuidGen call CommonGuidGen(<line1>, <line2>)
 command! -range GuidGen call GuidGen(<line1>, <line2>)
 
-let s:DashedGuidRe = "\\<\\x\\{8}-\\x\\{4}-\\x\\{4}-\\x\\{4}-\\x\\{12}\\>"
-let s:CommaSepGuidRe = "\\<\\x\\{8}, \\x\\{4}, \\x\\{4}, \\x\\{4}, \\x\\{12}\\>"
+let s:DashedGuidRe = '\<\x\{8}-\x\{4}-\x\{4}-\x\{4}-\x\{12}\>'
+let s:WppCommaSepGuidRe = '\<\x\{8}, \x\{4}, \x\{4}, \x\{4}, \x\{12}\>'
+let s:DefineGuidCommaSepGuidRe = '\<0x\x\{8}, 0x\x\{4}, 0x\x\{4}, 0x\x\{2}, 0x\x\{2}, 0x\x\{2}, 0x\x\{2}, 0x\x\{2}, 0x\x\{2}, 0x\x\{2}, 0x\x\{2}\>'
 
 " Replaces all dashed and comma separated guids in the given range with *the
 " same* guid (i.e. all guids in the range will have the same value)
 function! InternalGuidGen(FirstLine, LastLine, Guid)
    let DashedGuidReplaced = 1
-   let CommaSepGuidReplaced = 1
+   let WppCommaSepGuidReplaced = 1
+   let DefineGuidCommaSepGuidReplaced = 1
 
    let Guid = a:Guid
    try
@@ -18,16 +20,28 @@ function! InternalGuidGen(FirstLine, LastLine, Guid)
       let DashedGuidReplaced = 0
    endtry
 
-   " Modify the guid to be comma separated and replace
-   " any comma separated guids found in the range given
+   " Modify the guid to match wpp comma separated definition and replace
+   " any wpp comma separated guids found in the range given
+   let Guid = a:Guid
    let Guid = substitute(Guid, "-", ", ", "g")
    try
-      execute a:FirstLine . "," . a:LastLine . "s/" . s:CommaSepGuidRe . "/"  . Guid . "/g"
+      execute a:FirstLine . "," . a:LastLine . "s/" . s:WppCommaSepGuidRe . "/"  . Guid . "/g"
    catch
-      let CommaSepGuidReplaced = 0
+      let WppCommaSepGuidReplaced = 0
    endtry
 
-   return DashedGuidReplaced || CommaSepGuidReplaced
+   " Modify the guid to match DEFINE_GUID comma separated definition and replace
+   " any DEFINE_GUID comma separated guids found in the range given
+   let Guid = a:Guid
+   let Guid = substitute(Guid, '^\(\x\{8}\)-\(\x\{4}\)-\(\x\{4}\)', '0x\1, 0x\2, 0x\3, ', "g")
+   let Guid = substitute(Guid, '-\(\x\{2}\)\(\x\{2}\)-\(\x\{2}\)\(\x\{2}\)\(\x\{2}\)\(\x\{2}\)\(\x\{2}\)\(\x\{2}\)', '0x\1, 0x\2, 0x\3, 0x\4, 0x\5, 0x\6, 0x\7, 0x\8', "g")
+   try
+      execute a:FirstLine . "," . a:LastLine . "s/" . s:DefineGuidCommaSepGuidRe . "/"  . Guid . "/g"
+   catch
+      let DefineGuidCommaSepGuidReplaced = 0
+   endtry
+
+   return DashedGuidReplaced || WppCommaSepGuidReplaced || DefineGuidCommaSepGuidReplaced
 endfunction
 
 function! NullGuidGen(FirstLine, LastLine)
@@ -57,5 +71,5 @@ function! EchoError(Message)
 endfunction
 
 function! NewGuid()
-   return substitute(toupper(system("uuidgen.exe")), "\r\n", "", "")
+   return substitute(toupper(system("uuidgen")), "\n", "", "")
 endfunction
